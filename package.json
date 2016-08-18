@@ -1,24 +1,39 @@
 {
   "name": "rollup-plugin-bundles",
   "version": "1.0.0",
-  "description": "",
+  "description": "Prototyping rollup shared code bundling",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tivac/rollup-plugin-bundles.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "repository": "tivac/rollup-plugin-bundles",
+  "keywords": [
+    "rollup-plugin",
+    "bundling"
+  ],
+  "author": "Pat Cavit <npm@patcavit.com>",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/tivac/rollup-plugin-bundles/issues"
   },
   "homepage": "https://github.com/tivac/rollup-plugin-bundles#readme",
   "devDependencies": {
+    "eslint": "^3.3.1",
+    "eslint-config-arenanet": "^3.0.1",
     "rollup": "^0.34.10",
     "rollup-plugin-multi-entry": "^2.0.1"
+  },
+  "eslintConfig": {
+    "extends": "arenanet",
+    "env": {
+      "node": true
+    },
+    "parserOptions": {
+      "ecmaVersion": 6,
+      "sourceType": "module"
+    }
+  },
+  "dependencies": {
+    "lodash.pickby": "^4.6.0"
   }
 }
