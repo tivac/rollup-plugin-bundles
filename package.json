@@ -1,0 +1,24 @@
+{
+  "name": "rollup-plugin-bundles",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tivac/rollup-plugin-bundles.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tivac/rollup-plugin-bundles/issues"
+  },
+  "homepage": "https://github.com/tivac/rollup-plugin-bundles#readme",
+  "devDependencies": {
+    "rollup": "^0.34.10",
+    "rollup-plugin-multi-entry": "^2.0.1"
+  }
+}
