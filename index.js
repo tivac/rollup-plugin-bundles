@@ -3,26 +3,27 @@
 var pick = require("lodash.pickby");
 
 module.exports = function() {
-
     return {
         name : "rollup-plugin-bundles",
 
-        // TODO: would need a new hook, "onbeforegenerate" or something
-        ongenerate : function(opts, result) {
+        // TODO: This hook doesn't actually exist, I've hacked up the local
+        // copy of rollup to:
+        // 1) Call `onbeforegenerate` hooks before generating any code
+        // 2) Made the `bundle` property be a live reference to the bundle object
+        // 3) Put the previous `bundle` property onto `result` instead
+        onbeforegenerate : function(opts) {
             var deps = {};
 
-            console.log(opts.bundle.modules);
-            
             // Walk bundles dependencies and build up mapping
-            opts.bundle.modules.forEach((module) => {
-                Object.keys(module.resolvedIds).forEach((id) => {
-                    var dep = module.resolvedIds[id];
+            opts.bundle.orderedModules.forEach((mod) => {
+                Object.keys(mod.resolvedIds).forEach((id) => {
+                    var dep = mod.resolvedIds[id];
 
                     if(!deps[dep]) {
                         deps[dep] = [];
                     }
 
-                    deps[dep].push(module.id);
+                    deps[dep].push(mod.id);
                 });
             });
 
@@ -31,17 +32,17 @@ module.exports = function() {
 
             // Go get module references
             deps = Object.keys(deps).map((id) =>
-                opts.bundle.modules.find((module) =>
+                opts.bundle.orderedModules.findIndex((module) =>
                     module.id === id
                 )
             );
 
-            // Remove shared modules from already-generated bundle output
-            // TODO: doesn't work because bundle modules only have pre-generated code,
-            // not the actual output created by Bundle.render
-            deps.forEach((dep) => {
-                result.code = result.code.replace(dep.code, "");
-            });
+            // Remove shared modules from the array
+            deps = deps.map((idx) => opts.bundle.orderedModules.splice(idx, 1));
+
+            // TODO: Figure out how to create a new Bundle using these modules instances
+            // and generate some output from it
+            console.log(deps);
         }
     };
 };
