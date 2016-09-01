@@ -15,8 +15,16 @@ o.spec("bundler", () => {
                 require("../")()
             ]
         })
-        .then((bundle) => {
-            console.log(`Output:\n${bundle.generate().code}`);
+        .then((result) => {
+            var out = result.generate();
+
+            console.log(`Output:\n${out.code}`);
+
+            console.log(result);
+
+            result.shared.then(() => {
+                console.log(result.shared);
+            });
 
             done();
         })
