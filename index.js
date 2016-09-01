@@ -1,34 +1,62 @@
+/* eslint no-console: "off" */
 "use strict";
 
 var Bundle = require("rollup").Bundle,
     
-    pick = require("lodash.pickby"),
+    pick   = require("lodash.pickby"),
+    assign = require("lodash.assign"),
     
-    entry = '\0rollup-plugin-bundles:bundle-entry';
+    name  = "rollup-plugin-bundles",
+    entry = "\u0000" + name + ":entry";
 
-module.exports = function() {
+module.exports = function(config) {
     var deps = {},
-        shared;
+        
+        options, shared;
+    
+    if(!config || !config.shared) {
+        throw new Error("Must specify shared file destination");
+    }
+
+    function replacer() {
+        return {
+            name : name + "-replacer",
+
+            // Ensure special shared bundle entry doesn't get resolved by other plugins
+            // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
+            resolveId : function(id) {
+                console.log(`Resolving ${id} - ${id === entry}`);
+                
+                if(id !== entry) {
+                    return undefined;
+                }
+
+                return entry;
+            },
+
+            // Replace shared bundle entry w/ all it's constituent modules
+            // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
+            load : function(id) {
+                console.log(`Loading ${id} - ${id === entry}`);
+                
+                if(id !== entry) {
+                    return undefined;
+                }
+
+                console.log(deps);
+
+                return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
+            }
+        };
+    }
     
     return {
-        name : "rollup-plugin-bundles",
+        name : name,
 
-        // Ensure special shared bundle entry doesn't get resolved by other plugins
-        resolveId : function(id) {
-            if(!id !== entry) {
-                return undefined;
-            }
-
-            return entry;
-        },
-
-        // Replace shared bundle entry w/ all it's constituent modules
-        load : function(id) {
-            if(id !== entry) {
-                return undefined;
-            }
-
-            return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
+        // Cache original rollup options, we'll need them later to create a new
+        // bundle object
+        options : function(opts) {
+            options = opts;
         },
 
         // TODO: This hook doesn't actually exist, I've hacked up the local
@@ -36,9 +64,9 @@ module.exports = function() {
         // 1) Call `onbeforegenerate` hooks before generating any code
         // 2) Made the `bundle` property be a live reference to the bundle object
         // 3) Put the previous `bundle` property onto `result` instead
-        onbeforegenerate : function(opts) {
+        onbeforegenerate : function(opts, bundle) {
             // Walk bundles dependencies and build up mapping
-            opts.bundle.orderedModules.forEach((mod) => {
+            bundle.orderedModules.forEach((mod) => {
                 Object.keys(mod.resolvedIds).forEach((id) => {
                     var dep = mod.resolvedIds[id];
 
@@ -55,30 +83,40 @@ module.exports = function() {
 
             // Go get module references
             deps = Object.keys(deps).map((id) =>
-                opts.bundle.orderedModules.findIndex((module) =>
+                bundle.orderedModules.findIndex((module) =>
                     module.id === id
                 )
             );
 
             // Remove shared modules from the array
-            deps = deps.map((idx) => opts.bundle.orderedModules.splice(idx, 1)[0]);
+            deps = deps.map((idx) => bundle.orderedModules.splice(idx, 1)[0]);
 
-            // Create new shared bundle from the share dependencies
-            shared = new Bundle({
+            // Create new shared bundle from the shared dependencies
+            // Uses original rollup options, but removes this plugin and injects
+            // the newly-created replacer plugin
+            shared = new Bundle(assign(options, {
                 entry : entry,
                 cache : {
                     modules : deps
-                }
+                },
+                plugins : options.plugins.filter(function(plugin) {
+                    return plugin.name !== name;
+                }).concat(replacer())
+            }));
+        },
+
+        // TODO: unused
+        ongenerate : function(opts) {
+            opts.bundle.shared = shared.build().then(function() {
+                console.log(shared);
+                
+                return shared.render(opts);
             });
         },
 
-        ongenerate : function(opts) {
-            opts.result._shared = shared;
-            opts.result.shared = shared.build();
-        },
-
         onwrite : function(opts) {
-            // TODO: write output... somewhere
+            // TODO: write output... somewhere?
+            console.log(opts.bundle.shared);
         }
     };
 };

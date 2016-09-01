@@ -12,27 +12,26 @@ o.spec("bundler", () => {
             entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
             plugins : [
                 require("rollup-plugin-multi-entry")(),
-                require("../")()
+                require("../")({
+                    shared : "./shared.js"
+                })
             ]
         })
         .then((result) => {
             var out = result.generate();
 
             console.log(`Output:\n${out.code}`);
+            
+            return result.shared;
 
-            console.log(result);
-
-            result.shared.then(() => {
-                console.log(result.shared);
-            });
-
-            done();
+        })
+        .then((shared) => {
+            console.log(`Shared:\n${shared.code}`);
         })
         .catch((error) => {
             console.error(error.stack);
-
-            done();
-        });
+        })
+        .then(done);
     });
 });
 
