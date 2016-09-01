@@ -1,6 +1,6 @@
 "use strict";
 
-var o = require("./ospec"),
+var o = require("ospec"),
     
     rollup = require("rollup");
 
