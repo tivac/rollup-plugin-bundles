@@ -2,7 +2,7 @@
   "name": "rollup-plugin-bundles",
   "version": "1.0.0",
   "description": "Prototyping rollup shared code bundling",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "node test"
   },
@@ -17,6 +17,9 @@
     "url": "https://github.com/tivac/rollup-plugin-bundles/issues"
   },
   "homepage": "https://github.com/tivac/rollup-plugin-bundles#readme",
+  "dependencies": {
+    "lodash.assign": "^4.2.0"
+  },
   "devDependencies": {
     "eslint": "^3.3.1",
     "eslint-config-arenanet": "^3.0.1",
@@ -32,9 +35,5 @@
       "ecmaVersion": 6,
       "sourceType": "module"
     }
-  },
-  "dependencies": {
-    "lodash.assign": "^4.2.0",
-    "lodash.pickby": "^4.6.0"
   }
 }
