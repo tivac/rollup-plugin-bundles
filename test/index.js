@@ -17,19 +17,12 @@ o.spec("rollup-plugin-bundles", () => {
             ]
         })
         .then((result) => {
-            var out = result.generate();
-
-            console.log(`Output:\n${out.code}`);
-            
-            return result.shared;
+            result.generate();
         })
-        .then((shared) => {
-            console.log("Shared:\n", shared);
-        })
+        .then(done)
         .catch((error) => {
-            console.error(error.stack);
-        })
-        .then(done);
+            throw error;
+        });
     });
 });
 
