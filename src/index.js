@@ -1,26 +1,20 @@
 /* eslint no-console: "off" */
 "use strict";
 
-var Bundle = require("rollup").Bundle,
-    
-    pick   = require("lodash.pickby"),
-    assign = require("lodash.assign"),
-
-    consts = require("./constants.js"),
-    plugin = require("./load-shared.js");
+var consts  = require("./constants.js"),
+    extract = require("./extract");
 
 module.exports = function(config) {
-    var deps = {},
-        options, shared;
+    var options, shared;
     
-    if(!config || !config.shared) {
-        throw new Error("Must specify shared file destination");
+    if(!config) {
+        config = {};
     }
 
     return {
         name : consts.name,
 
-        // Cache original options & rewrite entry (if it's an Array')
+        // Cache original options & rewrite entry to the stub we'll implement in load
         options : function(opts) {
             if(!opts) {
                 opts = false;
@@ -37,10 +31,12 @@ module.exports = function(config) {
             opts.entry = consts.entry;
         },
 
+        // Not a real file, so have to handle bogus entry here
         resolveId : function(id) {
             return id === consts.entry ? consts.entry : undefined;
         },
 
+        // Generate fake entry file by importing all the real ones
         load : function(id) {
             if(id !== consts.entry) {
                 return undefined;
@@ -49,60 +45,43 @@ module.exports = function(config) {
             return config.entries.map((entry) => `import ${JSON.stringify(entry)};`).join("\n");
         },
 
-        // TODO: This hook doesn't actually exist, I've hacked up github.com/tivac/rollup#splitting
+        // Take processed bundle, break into sub-bundles
+        // TODO: This hook doesn't actually exist, I've hacked it into github.com/tivac/rollup#splitting
         onbeforegenerate : function(opts, bundle) {
-            // Walk bundles dependencies and build up mapping
-            bundle.orderedModules.forEach((mod) => {
-                Object.keys(mod.resolvedIds).forEach((id) => {
-                    var dep = mod.resolvedIds[id];
+            var common  = extract.common(bundle),
+                entries = extract.entries(bundle, config.entries.slice(1));
 
-                    if(!deps[dep]) {
-                        deps[dep] = [];
-                    }
+            console.log("Common:\n", common, "\nEntries:\n", entries);
 
-                    deps[dep].push(mod.id);
-                });
-            });
-
-            // Filter out any non-shared deps
-            deps = pick(deps, (modules) => modules.length > 1);
-
-            // Go get module references
-            deps = Object.keys(deps).map(
-                (id) => bundle.orderedModules.findIndex(
-                    (mod) => mod.id === id
-                )
-            );
-
-            // Remove shared modules from the array
-            deps = deps.map((idx) => bundle.orderedModules.splice(idx, 1)[0]);
-
+            // TODO: build bundle objects for common/entries
+            /*
             // Create new shared bundle from the shared dependencies
             // Uses original rollup options, but removes this plugin and injects
             // the newly-created replacer plugin
             shared = new Bundle(assign(options, {
                 entry : consts.entry,
                 cache : {
-                    modules : deps
+                    modules : common
                 },
                 plugins : [ plugin(deps) ].concat(
                     options.plugins.filter((p) => p.name !== consts.name)
                 )
             }));
+            */
         },
 
         // TODO: unused
-        ongenerate : function(opts) {
-            opts.bundle.shared = shared.build()
-                .then(() => shared.render(opts))
-                .catch((err) => {
-                    throw err;
-                });
-        },
+        // ongenerate : function(opts) {
+        //     opts.bundle.shared = shared.build()
+        //         .then(() => shared.render(opts))
+        //         .catch((err) => {
+        //             throw err;
+        //         });
+        // },
 
         // TODO: write output... somewhere?
-        onwrite : function(opts) {
-            console.log("onwrite");
-        }
+        // onwrite : function(opts) {
+        //     console.log("onwrite");
+        // }
     };
 };
