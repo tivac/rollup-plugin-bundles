@@ -5,41 +5,9 @@ var Bundle = require("rollup").Bundle,
     
     pick   = require("lodash.pickby"),
     assign = require("lodash.assign"),
-    
-    name  = "rollup-plugin-bundles",
-    entry = `\u0000${name}:entry`;
 
-function replacer(deps) {
-    return {
-        name : `${name}-replacer`,
-
-        // Ensure special shared bundle entry doesn't get resolved by other plugins
-        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-        resolveId : function(id) {
-            console.log(`Resolving ${id} - "${id}" == "${entry}" ? ${id == entry}`);
-            
-            if(id != entry) {
-                return undefined;
-            }
-
-            return entry;
-        },
-
-        // Replace shared bundle entry w/ all it's constituent modules
-        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-        load : function(id) {
-            console.log(`Loading ${id} - ${id == entry}`);
-            
-            if(id != entry) {
-                return undefined;
-            }
-
-            console.log(deps);
-
-            return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
-        }
-    };
-}
+    consts = require("./constants.js"),
+    plugin = require("./load-shared.js");
 
 module.exports = function(config) {
     var deps = {},
@@ -50,19 +18,38 @@ module.exports = function(config) {
     }
 
     return {
-        name : name,
+        name : consts.name,
 
-        // Cache original rollup options, we'll need them later to create a new
-        // bundle object
+        // Cache original options & rewrite entry (if it's an Array')
         options : function(opts) {
+            if(!opts) {
+                opts = false;
+            }
+            
             options = opts;
+
+            if(opts.entry === consts.entry) {
+                return;
+            }
+
+            // Save actual entries files & replace w/ dummy entry file
+            config.entries = opts.entry;
+            opts.entry = consts.entry;
         },
 
-        // TODO: This hook doesn't actually exist, I've hacked up the local
-        // copy of rollup to:
-        // 1) Call `onbeforegenerate` hooks before generating any code
-        // 2) Made the `bundle` property be a live reference to the bundle object
-        // 3) Put the previous `bundle` property onto `result` instead
+        resolveId : function(id) {
+            return id === consts.entry ? consts.entry : undefined;
+        },
+
+        load : function(id) {
+            if(id !== consts.entry) {
+                return undefined;
+            }
+
+            return config.entries.map((entry) => `import ${JSON.stringify(entry)};`).join("\n");
+        },
+
+        // TODO: This hook doesn't actually exist, I've hacked up github.com/tivac/rollup#splitting
         onbeforegenerate : function(opts, bundle) {
             // Walk bundles dependencies and build up mapping
             bundle.orderedModules.forEach((mod) => {
@@ -94,12 +81,12 @@ module.exports = function(config) {
             // Uses original rollup options, but removes this plugin and injects
             // the newly-created replacer plugin
             shared = new Bundle(assign(options, {
-                entry : entry,
+                entry : consts.entry,
                 cache : {
                     modules : deps
                 },
-                plugins : [ replacer(deps) ].concat(
-                    options.plugins.filter((plugin) => plugin.name !== name)
+                plugins : [ plugin(deps) ].concat(
+                    options.plugins.filter((p) => p.name !== consts.name)
                 )
             }));
         },

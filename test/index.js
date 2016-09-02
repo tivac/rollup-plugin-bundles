@@ -4,15 +4,14 @@ var o = require("ospec"),
     
     rollup = require("rollup");
 
-o.spec("bundler", () => {
+o.spec("rollup-plugin-bundles", () => {
     o("test", (done, timeout) => {
         timeout(999999);
 
         rollup.rollup({
             entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
             plugins : [
-                require("rollup-plugin-multi-entry")(),
-                require("../")({
+                require("../src/index.js")({
                     shared : "./shared.js"
                 })
             ]
@@ -23,7 +22,6 @@ o.spec("bundler", () => {
             console.log(`Output:\n${out.code}`);
             
             return result.shared;
-
         })
         .then((shared) => {
             console.log("Shared:\n", shared);
