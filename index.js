@@ -7,49 +7,48 @@ var Bundle = require("rollup").Bundle,
     assign = require("lodash.assign"),
     
     name  = "rollup-plugin-bundles",
-    entry = "\u0000" + name + ":entry";
+    entry = `\u0000${name}:entry`;
+
+function replacer(deps) {
+    return {
+        name : `${name}-replacer`,
+
+        // Ensure special shared bundle entry doesn't get resolved by other plugins
+        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
+        resolveId : function(id) {
+            console.log(`Resolving ${id} - "${id}" == "${entry}" ? ${id == entry}`);
+            
+            if(id != entry) {
+                return undefined;
+            }
+
+            return entry;
+        },
+
+        // Replace shared bundle entry w/ all it's constituent modules
+        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
+        load : function(id) {
+            console.log(`Loading ${id} - ${id == entry}`);
+            
+            if(id != entry) {
+                return undefined;
+            }
+
+            console.log(deps);
+
+            return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
+        }
+    };
+}
 
 module.exports = function(config) {
     var deps = {},
-        
         options, shared;
     
     if(!config || !config.shared) {
         throw new Error("Must specify shared file destination");
     }
 
-    function replacer() {
-        return {
-            name : name + "-replacer",
-
-            // Ensure special shared bundle entry doesn't get resolved by other plugins
-            // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-            resolveId : function(id) {
-                console.log(`Resolving ${id} - ${id === entry}`);
-                
-                if(id !== entry) {
-                    return undefined;
-                }
-
-                return entry;
-            },
-
-            // Replace shared bundle entry w/ all it's constituent modules
-            // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-            load : function(id) {
-                console.log(`Loading ${id} - ${id === entry}`);
-                
-                if(id !== entry) {
-                    return undefined;
-                }
-
-                console.log(deps);
-
-                return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
-            }
-        };
-    }
-    
     return {
         name : name,
 
@@ -82,9 +81,9 @@ module.exports = function(config) {
             deps = pick(deps, (modules) => modules.length > 1);
 
             // Go get module references
-            deps = Object.keys(deps).map((id) =>
-                bundle.orderedModules.findIndex((module) =>
-                    module.id === id
+            deps = Object.keys(deps).map(
+                (id) => bundle.orderedModules.findIndex(
+                    (mod) => mod.id === id
                 )
             );
 
@@ -99,24 +98,24 @@ module.exports = function(config) {
                 cache : {
                     modules : deps
                 },
-                plugins : options.plugins.filter(function(plugin) {
-                    return plugin.name !== name;
-                }).concat(replacer())
+                plugins : [ replacer(deps) ].concat(
+                    options.plugins.filter((plugin) => plugin.name !== name)
+                )
             }));
         },
 
         // TODO: unused
         ongenerate : function(opts) {
-            opts.bundle.shared = shared.build().then(function() {
-                console.log(shared);
-                
-                return shared.render(opts);
-            });
+            opts.bundle.shared = shared.build()
+                .then(() => shared.render(opts))
+                .catch((err) => {
+                    throw err;
+                });
         },
 
+        // TODO: write output... somewhere?
         onwrite : function(opts) {
-            // TODO: write output... somewhere?
-            console.log(opts.bundle.shared);
+            console.log("onwrite");
         }
     };
 };

@@ -6,7 +6,7 @@ var o = require("ospec"),
 
 o.spec("bundler", () => {
     o("test", (done, timeout) => {
-        timeout(1000);
+        timeout(999999);
 
         rollup.rollup({
             entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
@@ -26,7 +26,7 @@ o.spec("bundler", () => {
 
         })
         .then((shared) => {
-            console.log(`Shared:\n${shared.code}`);
+            console.log("Shared:\n", shared);
         })
         .catch((error) => {
             console.error(error.stack);
