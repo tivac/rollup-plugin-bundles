@@ -21,7 +21,9 @@ o.spec("rollup-plugin-bundles", () => {
         })
         .then(done)
         .catch((error) => {
-            throw error;
+            console.error(error.stack);
+
+            return done(error);
         });
     });
 });
