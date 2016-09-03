@@ -21,8 +21,7 @@
     "eslint": "^3.3.1",
     "eslint-config-arenanet": "^3.0.1",
     "ospec": "^1.0.0",
-    "rollup": "^0.34.10",
-    "rollup-plugin-multi-entry": "^2.0.1"
+    "rollup": "tivac/rollup#splitting"
   },
   "eslintConfig": {
     "extends": "arenanet",
