@@ -11,7 +11,6 @@ o.spec("bundler", () => {
         rollup.rollup({
             entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
             plugins : [
-                require("rollup-plugin-multi-entry")(),
                 require("../")({
                     shared : "./shared.js"
                 })
@@ -20,13 +19,13 @@ o.spec("bundler", () => {
         .then((result) => {
             var out = result.generate();
 
-            console.log(`Output:\n${out.code}`);
+            console.log(`Output:\n\n${out.code}\n`);
             
             return result.shared;
 
         })
         .then((shared) => {
-            console.log("Shared:\n", shared);
+            console.log(`Shared:\n\n${shared.code}\n`);
         })
         .catch((error) => {
             console.error(error.stack);

@@ -6,44 +6,14 @@ var Bundle = require("rollup").Bundle,
     pick   = require("lodash.pickby"),
     assign = require("lodash.assign"),
     
-    name  = "rollup-plugin-bundles",
-    entry = `\u0000${name}:entry`;
+    replacer = require("./replacer.js"),
 
-function replacer(deps) {
-    return {
-        name : `${name}-replacer`,
-
-        // Ensure special shared bundle entry doesn't get resolved by other plugins
-        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-        resolveId : function(id) {
-            console.log(`Resolving ${id} - "${id}" == "${entry}" ? ${id == entry}`);
-            
-            if(id != entry) {
-                return undefined;
-            }
-
-            return entry;
-        },
-
-        // Replace shared bundle entry w/ all it's constituent modules
-        // TODO: Never matches, maybe rollup-plugin-multi-entry issue?
-        load : function(id) {
-            console.log(`Loading ${id} - ${id == entry}`);
-            
-            if(id != entry) {
-                return undefined;
-            }
-
-            console.log(deps);
-
-            return Promise.resolve(deps.map((mod) => mod.code).join("\n"));
-        }
-    };
-}
+    name  = require("./package.json").name,
+    entry = `\0${name}:entry`;
 
 module.exports = function(config) {
-    var deps = {},
-        options, shared;
+    var deps    = {},
+        options, shared, entries;
     
     if(!config || !config.shared) {
         throw new Error("Must specify shared file destination");
@@ -52,17 +22,34 @@ module.exports = function(config) {
     return {
         name : name,
 
-        // Cache original rollup options, we'll need them later to create a new
-        // bundle object
+        // Cache original rollup options
+        // Rewrite entry so we can support an array of entries
         options : function(opts) {
             options = opts;
+
+            entries = Array.isArray(options.entry) ? options.entry : [ options.entry ];
+            
+            // Need to rewrite to singular entry so rollup can handle it
+            if(options.entry === entries) {
+                options.entry = entry;
+            }
         },
+
+        // Ensure special shared bundle entry doesn't get resolved by other plugins
+        resolveId : (id) => (id === entry ? entry : undefined),
+
+        // Replace shared bundle entry w/ all it's constituent modules
+        load : (id) => (id === entry ?
+            Promise.resolve(
+                entries.map((mod) => `import ${JSON.stringify(mod)};`).join("\n")
+            ) :
+            undefined
+        ),
 
         // TODO: This hook doesn't actually exist, I've hacked up the local
         // copy of rollup to:
         // 1) Call `onbeforegenerate` hooks before generating any code
-        // 2) Made the `bundle` property be a live reference to the bundle object
-        // 3) Put the previous `bundle` property onto `result` instead
+        // 2) Pass the bundle object as another arg
         onbeforegenerate : function(opts, bundle) {
             // Walk bundles dependencies and build up mapping
             bundle.orderedModules.forEach((mod) => {
@@ -81,9 +68,9 @@ module.exports = function(config) {
             deps = pick(deps, (modules) => modules.length > 1);
 
             // Go get module references
-            deps = Object.keys(deps).map(
-                (id) => bundle.orderedModules.findIndex(
-                    (mod) => mod.id === id
+            deps = Object.keys(deps).map((id) =>
+                bundle.orderedModules.findIndex((mod) =>
+                    mod.id === id
                 )
             );
 
@@ -92,9 +79,9 @@ module.exports = function(config) {
 
             // Create new shared bundle from the shared dependencies
             // Uses original rollup options, but removes this plugin and injects
-            // the newly-created replacer plugin
+            // the replacer plugin
             shared = new Bundle(assign(options, {
-                entry : entry,
+                entry : replacer.entry,
                 cache : {
                     modules : deps
                 },
