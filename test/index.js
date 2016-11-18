@@ -4,9 +4,9 @@ var o = require("ospec"),
     
     rollup = require("rollup");
 
-o.spec("bundler", () => {
+o.spec("rollup-plugin-bundles", () => {
     o("test", (done, timeout) => {
-        timeout(999999);
+        timeout(Infinity);
 
         rollup.rollup({
             entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
@@ -17,20 +17,14 @@ o.spec("bundler", () => {
             ]
         })
         .then((result) => {
-            var out = result.generate();
-
-            console.log(`Output:\n\n${out.code}\n`);
             
-            return result.shared;
-
         })
-        .then((shared) => {
-            console.log(`Shared:\n\n${shared.code}\n`);
-        })
+        .then(done)
         .catch((error) => {
             console.error(error.stack);
-        })
-        .then(done);
+
+            return done(error);
+        });
     });
 });
 

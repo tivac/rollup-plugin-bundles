@@ -1,8 +1,8 @@
 /* eslint no-console: "off" */
 "use strict";
 
-var Bundle = require("rollup").Bundle,
-    
+var rollup = require("rollup"),
+
     pick   = require("lodash.pickby"),
     assign = require("lodash.assign"),
     
@@ -12,8 +12,7 @@ var Bundle = require("rollup").Bundle,
     entry = `\0${name}:entry`;
 
 module.exports = function(config) {
-    var deps    = {},
-        options, shared, entries;
+    var bundles, options, shared, entries;
     
     if(!config || !config.shared) {
         throw new Error("Must specify shared file destination");
@@ -38,71 +37,57 @@ module.exports = function(config) {
         // Ensure special shared bundle entry doesn't get resolved by other plugins
         resolveId : (id) => (id === entry ? entry : undefined),
 
-        // Replace shared bundle entry w/ all it's constituent modules
-        load : (id) => (id === entry ?
-            Promise.resolve(
-                entries.map((mod) => `import ${JSON.stringify(mod)};`).join("\n")
-            ) :
+        // create new Bundle instance for each entry (copy options, modify entry)
+        // call resolveId().then(fetchModule(id)) on all bundles
+        // Inspect modules for each bundle
+        // Extract shared modules into shared bundle
+        // Inject shared modules into rollup as the dynamic file
+        load : (file) => (file === entry ?
+            Promise.all(entries.map((id) => {
+                var bundle = new rollup.Bundle(Object.assign(options, { entry : id }));
+
+                return bundle.resolveId(bundle.entry)
+                    .then((found) => bundle.fetchModule(found))
+                    .then(() => bundle);
+            }))
+            .then((results) => {
+                var deps = Object.create(null);
+
+                // store entry bundles
+                bundles = results;
+
+                // Walk bundles dependencies and build up mapping
+                bundles.forEach((bundle) =>
+                    bundle.modules.forEach((module) => {
+                        Object.keys(module.resolvedIds).forEach((id) => {
+                            var dep = module.resolvedIds[id];
+
+                            if(!deps[dep]) {
+                                deps[dep] = [];
+                            }
+
+                            deps[dep].push(module.id);
+                        });
+                    })
+                );
+
+                // Filter out any non-shared deps
+                deps = pick(deps, (modules) => modules.length > 1);
+
+                return Promise.resolve(
+                    Object.keys(deps).map((mod) => `import ${JSON.stringify(mod)};`).join("\n")
+                );
+            })
+            .catch(console.error.bind(console)) :
             undefined
         ),
 
-        // TODO: This hook doesn't actually exist, I've hacked up the local
-        // copy of rollup to:
-        // 1) Call `onbeforegenerate` hooks before generating any code
-        // 2) Pass the bundle object as another arg
-        onbeforegenerate : function(opts, bundle) {
-            // Walk bundles dependencies and build up mapping
-            bundle.orderedModules.forEach((mod) => {
-                Object.keys(mod.resolvedIds).forEach((id) => {
-                    var dep = mod.resolvedIds[id];
-
-                    if(!deps[dep]) {
-                        deps[dep] = [];
-                    }
-
-                    deps[dep].push(mod.id);
-                });
-            });
-
-            // Filter out any non-shared deps
-            deps = pick(deps, (modules) => modules.length > 1);
-
-            // Go get module references
-            deps = Object.keys(deps).map((id) =>
-                bundle.orderedModules.findIndex((mod) =>
-                    mod.id === id
-                )
-            );
-
-            // Remove shared modules from the array
-            deps = deps.map((idx) => bundle.orderedModules.splice(idx, 1)[0]);
-
-            // Create new shared bundle from the shared dependencies
-            // Uses original rollup options, but removes this plugin and injects
-            // the replacer plugin
-            shared = new Bundle(assign(options, {
-                entry : replacer.entry,
-                cache : {
-                    modules : deps
-                },
-                plugins : [ replacer(deps) ].concat(
-                    options.plugins.filter((plugin) => plugin.name !== name)
-                )
-            }));
-        },
-
-        // TODO: unused
+        // TODO: Walk entry bundles, generate using new exports I hacked into rollup
         ongenerate : function(opts) {
-            opts.bundle.shared = shared.build()
-                .then(() => shared.render(opts))
-                .catch((err) => {
-                    throw err;
-                });
-        },
-
-        // TODO: write output... somewhere?
-        onwrite : function(opts) {
-            console.log("onwrite");
+            // TODO: broken for some reason!
+            opts.entries = Promise.all(bundles.map((bundle) =>
+                bundle.build().then(() => rollup.process(bundle))
+            ));
         }
     };
 };
