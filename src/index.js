@@ -4,11 +4,8 @@
 var rollup = require("rollup"),
 
     pick   = require("lodash.pickby"),
-    assign = require("lodash.assign"),
-    
-    replacer = require("./replacer.js"),
 
-    name  = require("./package.json").name,
+    name  = require("../package.json").name,
     entry = `\0${name}:entry`;
 
 module.exports = function(config) {
@@ -41,9 +38,14 @@ module.exports = function(config) {
         // call resolveId().then(fetchModule(id)) on all bundles
         // Inspect modules for each bundle
         // Extract shared modules into shared bundle
+        // Remove shared modules from existing bundles
         // Inject shared modules into rollup as the dynamic file
-        load : (file) => (file === entry ?
-            Promise.all(entries.map((id) => {
+        load : (file) => {
+            if(file !== entry) {
+                return undefined;
+            }
+
+            return Promise.all(entries.map((id) => {
                 var bundle = new rollup.Bundle(Object.assign(options, { entry : id }));
 
                 return bundle.resolveId(bundle.entry)
@@ -56,7 +58,7 @@ module.exports = function(config) {
                 // store entry bundles
                 bundles = results;
 
-                // Walk bundles dependencies and build up mapping
+                // Walk bundle dependencies and build up mapping
                 bundles.forEach((bundle) =>
                     bundle.modules.forEach((module) => {
                         Object.keys(module.resolvedIds).forEach((id) => {
@@ -72,21 +74,22 @@ module.exports = function(config) {
                 );
 
                 // Filter out any non-shared deps
-                deps = pick(deps, (modules) => modules.length > 1);
+                deps = Object.keys(deps).filter((dep) => deps[dep].length > 1);
 
-                return Promise.resolve(
-                    Object.keys(deps).map((mod) => `import ${JSON.stringify(mod)};`).join("\n")
-                );
-            })
-            .catch(console.error.bind(console)) :
-            undefined
-        ),
+                // TODO: Remove shared modules from bundles
+                bundles.forEach((bundle) => {
+                    deps.forEach((dep) => bundle.remove(dep));
+                });
 
-        // TODO: Walk entry bundles, generate using new exports I hacked into rollup
-        ongenerate : function(opts) {
-            // TODO: broken for some reason!
-            opts.entries = Promise.all(bundles.map((bundle) =>
-                bundle.build().then(() => rollup.process(bundle))
+                return deps.map((dep) => `import ${JSON.stringify(dep)};`).join("\n");
+            });
+        },
+
+        ongenerate : function(opts, result) {
+            result.bundles = Promise.all(bundles.map((bundle) =>
+                bundle.build().then(() =>
+                    rollup.process(bundle)
+                )
             ));
         }
     };

@@ -9,15 +9,28 @@ o.spec("rollup-plugin-bundles", () => {
         timeout(Infinity);
 
         rollup.rollup({
-            entry   : [ "./test/specimens/a.js", "./test/specimens/b.js" ],
+            entry : [
+                "./test/specimens/a.js",
+                "./test/specimens/b.js"
+            ],
             plugins : [
-                require("../")({
+                require("../src/index.js")({
                     shared : "./shared.js"
                 })
             ]
         })
         .then((result) => {
-            
+            var out = result.generate();
+
+            console.log(out);
+
+            out.bundles.then((bundles) => {
+                bundles.forEach((bundle) => {
+                    var thing = bundle.generate();
+                    
+                    console.log(thing.code);
+                });
+            });
         })
         .then(done)
         .catch((error) => {
